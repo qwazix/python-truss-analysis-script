@@ -1,0 +1,19 @@
+{
+    "truss": {
+        "name" : "truss1",
+        "joints" : {
+           "1" : { "x" : 0 , "y" : 0  },
+           "2" : { "x" : 4 , "y": 0   },
+           "3" : { "x" : 4 , "y": 3   },
+        },
+        "loads" : {
+            "1" : { "onNode": 1, "magnitude" :  10000 , "direction" : "x" } ,
+            "2" : { "onNode": 1, "magnitude" : -15000 , "direction" : "y" } 
+        },
+        "supported_dof" : { 
+            "1" : { "onNode": 2, "direction": "x", "prescribedDisplacement": "0" },
+            "2" : { "onNode": 2, "direction": "y", "prescribedDisplacement": "0" },
+            "3" : { "onNode": 3, "direction": "x", "prescribedDisplacement": "0" }
+        }
+    }
+}
