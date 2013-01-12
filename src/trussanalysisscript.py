@@ -84,11 +84,46 @@ class beam:
         self.T = array([[self.cos, self.sin, 0, 0],[-self.sin, self.cos, 0, 0],[0, 0, self.cos, self.sin],[0, 0, -self.sin, self.cos]])
         #compute stiffness matrix in global coords
         self.kglobal=(self.T).T.dot(self.klocal).dot(self.T)
+    def __str__(self):
+        res= "\n"
+        res+= "BEAM\n"
+        res+= "---------\n"
+        res+= 'Beam No:      %d\n' % self.id;
+        res+= 'Length:       %d\n' % self.length;
+        res+= 'Elasticity:   %.1e\n' % self.elasticity;
+        res+= 'Section Area: %d\n' % self.sectionArea;
+        res+= 'cos:          %d\n' % self.cos;
+        res+= 'sin:          %d\n' % self.sin;
+        res+= 'start:        joint  %d\n' % self.startNode.id;
+        res+= 'end:          joint  %d\n' % self.endNode.id;
+        return res;
+
+def addToGeneral(generalK, b):
+    # @type b beam
+    startC=2*b.startNode.id-1
+    endC=2*b.endNode.id-1
+    for i in range(2):
+        for j in range(2):
+            generalK[startC+i,startC+j]=b.kglobal[i,j]
+            generalK[startC+i,endC+j]=b.kglobal[i,2+j]
+            generalK[endC+i,startC+j]=b.kglobal[2+i,j]
+            generalK[endC+i,endC+j]=b.kglobal[2+i,2+j]
+    return generalK
+
+def computeAxialForces(b, u):
+    # @type b beam
+    myu = array();
+    myu[i,0]=u[2*b.startNode.id-1,1]
+    myu[i,0]=u[2*b.startNode.id,1]
+    myu[i,0]=u[2*b.endNode.id-1,1]
+    myu[i,0]=u[2*b.endNode.id,1]
+    return b.klocal.dot(b.T).dot(myu);
+
 
 if __name__ == "__main__":
-    n1 = joint(1,0,0)
-    n2 = joint(2,0,1)
+    n1 = joint(0,0,0)
+    n2 = joint(1,0,1)
 
     myBeam = beam(1, n1, n2)
 
-#    print b
+    print myBeam
