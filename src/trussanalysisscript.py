@@ -1,4 +1,7 @@
+#!/usr/bin/python
 # coding=utf-8
+import sys
+
 # To change this template, choose Tools | Templates
 # and open the template in the editor.
 
@@ -6,9 +9,42 @@ from cmath import sqrt
 import array
 from numpy import *
 import scipy
+import json
 
 __author__="qwazix"
 __date__ ="$Jan 12, 2013 2:52:56 PM$"
+
+class truss:
+    beams = list()
+    joints = list()
+    def __init__(self, filename):
+        # @type file file
+        file = open(filename, 'r')
+        truss = json.load(file)['truss']
+        self.joints = list()
+        for id, j in truss['joints'].iteritems():
+            # @type newJoint joint
+            newJoint = joint(int(id),j["x"],j["y"])
+            if "loads" in j:
+                tmpLoads = list()
+                for l in j["loads"]:
+                    tmpLoads.append(load(l["direction"],l["magnitude"]))
+                    newJoint.loads = tmpLoads
+            if "supports" in j:
+                tmpSupports = list()
+                for s in j["supports"]:
+                    tmpSupports.append(support(s["direction"],s["prescribedDisplacement"]))
+                    newJoint.supports = tmpSupports
+            self.joints.append(newJoint)
+
+        self.beams = list()
+        for id, b in truss['beams'].iteritems():
+            # @type newBeam beam
+            newBeam = beam(int(id),self.joints[b["start"]],self.joints[b["end"]])
+            newBeam.elasticity = b["elasticity"]
+            newBeam.sectionArea = b["area"]
+            self.beams.append(newBeam)
+    
 
 class point:
     x = 0
@@ -28,20 +64,56 @@ class point:
 class joint:
     id
     coordinates = point() # Δίνουμε τα χαρακτηριστικά της κλάσης
-    support = point()
+    supports = list()
     displacement = point()
-    loads = array(0)
+    loads = list()
     totalMagnitude = point()
     def __init__(self, id, x, y):
         self.id = id
         self.coordinates = point(x,y)
+    def __str__(self):
+        res= "\n"
+        res+= "JOINT\n"
+        res+= "---------\n"
+        res+= 'Joint No:      %d\n' % self.id;
+        res+= '       x:      %d\n' % self.coordinates.x;
+        res+= '       y:      %d\n' % self.coordinates.y;
+        for l in self.loads:
+            # @type load load
+            res += l.__str__()
+        for s in self.supports:
+            # @type load load
+            res += s.__str__()
+        return res
 
 class load:
     direction = "x"
     magnitude = 0
+    def __init__(self, direction, magnitude):
+        self.direction = direction
+        self.magnitude = magnitude
+    def __str__(self):
+        res= "\n"
+        res+= "LOAD\n"
+        res+= "---------\n"
+        res+= 'direction:      %s\n' % self.direction;
+        res+= 'magnitude:      %d\n' % self.magnitude;
+        return res
 
-#    def turnOn(self):
-#        print "turning on"
+class support:
+    direction = "x"
+    displacement = 0
+    def __init__(self, direction, displacement):
+        self.direction = direction
+        self.displacement = displacement
+    def __str__(self):
+        res= "\n"
+        res+= "SUPPORT\n"
+        res+= "---------\n"
+        res+= 'direction:      %s\n' % self.direction;
+        res+= 'displacement:      %d\n' % self.displacement;
+        return res
+
 
 class beam:
     id = 0
@@ -100,8 +172,8 @@ class beam:
 
 def addToGeneral(generalK, b):
     # @type b beam
-    startC=2*b.startNode.id-1
-    endC=2*b.endNode.id-1
+    startC=2*b.startNode.id
+    endC=2*b.endNode.id
     for i in range(2):
         for j in range(2):
             generalK[startC+i,startC+j]=b.kglobal[i,j]
@@ -119,11 +191,25 @@ def computeAxialForces(b, u):
     myu[i,0]=u[2*b.endNode.id,1]
     return b.klocal.dot(b.T).dot(myu);
 
+    
 
 if __name__ == "__main__":
-    n1 = joint(0,0,0)
-    n2 = joint(1,0,1)
 
-    myBeam = beam(1, n1, n2)
+    # @type myTruss truss
+    myTruss = truss(sys.argv[1])
 
-    print myBeam
+
+
+
+    for b in myTruss.beams:
+        print b
+
+    for j in myTruss.joints:
+        print j
+
+#    n1 = joint(0,0,0)
+#    n2 = joint(1,0,1)
+#
+#    myBeam = beam(1, n1, n2)
+#
+#    print myBeam

@@ -2,18 +2,31 @@
     "truss": {
         "name" : "truss1",
         "joints" : {
-           "1" : { "x" : 0 , "y" : 0  },
-           "2" : { "x" : 4 , "y": 0   },
-           "3" : { "x" : 4 , "y": 3   },
+           "0" : { "x"    : 0 ,
+                   "y"    : 0 ,
+                   "loads": [
+                       { "magnitude" :  10000 , "direction" : "x" },
+                       { "magnitude" : -15000 , "direction" : "y" } 
+                   ]
+           },
+           "1" : { "x" : 4,
+                   "y" : 0,
+                   "supports" : [
+                       { "direction": "x", "prescribedDisplacement": 0 },
+                       { "direction": "y", "prescribedDisplacement": 0 }
+                   ]
+           },
+           "2" : { "x" : 4 ,
+                   "y": 3  ,
+                   "supports" : [
+                       { "direction": "x", "prescribedDisplacement": 0 }
+                    ]
+            }
         },
-        "loads" : {
-            "1" : { "onNode": 1, "magnitude" :  10000 , "direction" : "x" } ,
-            "2" : { "onNode": 1, "magnitude" : -15000 , "direction" : "y" } 
-        },
-        "supported_dof" : { 
-            "1" : { "onNode": 2, "direction": "x", "prescribedDisplacement": "0" },
-            "2" : { "onNode": 2, "direction": "y", "prescribedDisplacement": "0" },
-            "3" : { "onNode": 3, "direction": "x", "prescribedDisplacement": "0" }
+        "beams" : {
+            "0" : { "start" : 0, "end" : 1, "elasticity" : 200e9, "area" : 0.001 },
+            "1" : { "start" : 0, "end" : 2, "elasticity" : 200e9, "area" : 0.001 },
+            "2" : { "start" : 1, "end" : 2, "elasticity" : 200e9, "area" : 0.001 }
         }
     }
 }
