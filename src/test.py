@@ -10,8 +10,13 @@ a = append(a, [d[1]], axis=0)
 #a[2]= [0,0,0]
 
 #print array([d[:][:,2]]).transpose()
+#
+#a = zeros((4,2))
+#
+#a[2,1]=1
+#print a
 
-a = zeros((4,2))
+d = {'key':'value', 'ke2' : 'v3'}
 
-a[2,1]=1
-print a
+for i in d:
+    print d[i]
