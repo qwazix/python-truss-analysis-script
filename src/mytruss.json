@@ -11,16 +11,11 @@
            },
            "1" : { "x" : 4,
                    "y" : 0,
-                   "supports" : [
-                       { "direction": "x", "prescribedDisplacement": 0 },
-                       { "direction": "y", "prescribedDisplacement": 0 }
-                   ]
+                   "supports" : { "x" : 0 , "y" : 0 }
            },
            "2" : { "x" : 4 ,
                    "y": 3  ,
-                   "supports" : [
-                       { "direction": "x", "prescribedDisplacement": 0 }
-                    ]
+                   "supports" : {"x" : 0 }
             }
         },
         "beams" : {

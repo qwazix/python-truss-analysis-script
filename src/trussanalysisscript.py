@@ -6,10 +6,10 @@ import sys
 # and open the template in the editor.
 
 from cmath import sqrt
-import array
 from numpy import *
 import scipy
 import json
+import math
 
 __author__="qwazix"
 __date__ ="$Jan 12, 2013 2:52:56 PM$"
@@ -17,6 +17,8 @@ __date__ ="$Jan 12, 2013 2:52:56 PM$"
 class truss:
     beams = list()
     joints = list()
+    supportedDof = 0
+    dof = 0
     def __init__(self, filename):
         # @type file file
         file = open(filename, 'r')
@@ -30,13 +32,11 @@ class truss:
                 for l in j["loads"]:
                     tmpLoads.append(load(l["direction"],l["magnitude"]))
                     newJoint.loads = tmpLoads
-            if "supports" in j:
-                tmpSupports = list()
-                for s in j["supports"]:
-                    tmpSupports.append(support(s["direction"],s["prescribedDisplacement"]))
-                    newJoint.supports = tmpSupports
+            if ("supports" in j) : newJoint.supports = j["supports"]
             self.joints.append(newJoint)
 
+        self.dof = zeros((len(self.joints)*2))
+        self.dofArray();
         self.beams = list()
         for id, b in truss['beams'].iteritems():
             # @type newBeam beam
@@ -44,6 +44,26 @@ class truss:
             newBeam.elasticity = b["elasticity"]
             newBeam.sectionArea = b["area"]
             self.beams.append(newBeam)
+
+    def calculateSupportedDof(self):
+        sDof = 0
+        for j in self.joints:
+            # @type j joint
+            sDof += len(j.supports);
+        self.supportedDof = sDof;
+
+    def dofArray(self):
+        sDof = 0
+        for j in self.joints:
+            # @type j joint
+            if "x" in j.supports:
+                self.dof[sDof] = 1
+                sDof += 1
+            if "y" in j.supports:
+                self.dof[sDof] = 1
+                sDof += 1
+        self.supportedDof = sDof;
+
     
 
 class point:
@@ -64,7 +84,7 @@ class point:
 class joint:
     id
     coordinates = point() # Δίνουμε τα χαρακτηριστικά της κλάσης
-    supports = list()
+    supports = dict()
     displacement = point()
     loads = list()
     totalMagnitude = point()
@@ -85,6 +105,15 @@ class joint:
             # @type load load
             res += s.__str__()
         return res
+    def getTotalLoadMagnitude(self):
+        self.totalMagnitude = point();
+        for l in self.loads:
+            # @type l load
+            if l.direction == "x":
+                self.totalMagnitude.x += l.magnitude
+            else:
+                self.totalMagnitude.y += l.magnitude
+        return self.totalMagnitude
 
 class load:
     direction = "x"
@@ -99,21 +128,6 @@ class load:
         res+= 'direction:      %s\n' % self.direction;
         res+= 'magnitude:      %d\n' % self.magnitude;
         return res
-
-class support:
-    direction = "x"
-    displacement = 0
-    def __init__(self, direction, displacement):
-        self.direction = direction
-        self.displacement = displacement
-    def __str__(self):
-        res= "\n"
-        res+= "SUPPORT\n"
-        res+= "---------\n"
-        res+= 'direction:      %s\n' % self.direction;
-        res+= 'displacement:      %d\n' % self.displacement;
-        return res
-
 
 class beam:
     id = 0
@@ -155,7 +169,7 @@ class beam:
         #build transformation matrix
         self.T = array([[self.cos, self.sin, 0, 0],[-self.sin, self.cos, 0, 0],[0, 0, self.cos, self.sin],[0, 0, -self.sin, self.cos]])
         #compute stiffness matrix in global coords
-        self.kglobal=(self.T).T.dot(self.klocal).dot(self.T)
+        self.kglobal=(self.T).conj().transpose().dot(self.klocal).dot(self.T)
     def __str__(self):
         res= "\n"
         res+= "BEAM\n"
@@ -176,11 +190,11 @@ def addToGeneral(generalK, b):
     endC=2*b.endNode.id
     for i in range(2):
         for j in range(2):
-            generalK[startC+i,startC+j]=b.kglobal[i,j]
-            generalK[startC+i,endC+j]=b.kglobal[i,2+j]
-            generalK[endC+i,startC+j]=b.kglobal[2+i,j]
-            generalK[endC+i,endC+j]=b.kglobal[2+i,2+j]
-    return generalK
+            generalK[startC+i,startC+j]+=b.kglobal[i,j]
+            generalK[startC+i,endC+j]+=b.kglobal[i,2+j]
+            generalK[endC+i,startC+j]+=b.kglobal[2+i,j]
+            generalK[endC+i,endC+j]+=b.kglobal[2+i,2+j]
+
 
 def computeAxialForces(b, u):
     # @type b beam
@@ -189,23 +203,98 @@ def computeAxialForces(b, u):
     myu[i,0]=u[2*b.startNode.id,1]
     myu[i,0]=u[2*b.endNode.id-1,1]
     myu[i,0]=u[2*b.endNode.id,1]
-    return b.klocal.dot(b.T).dot(myu);
+    return b.klocal.dot(b.conj().transpose()).dot(myu);
 
-    
+def getColumn(mat, column):
+    return array([mat[:][:,column]]).transpose()
+
 
 if __name__ == "__main__":
 
+    set_printoptions(precision=4)
+    set_printoptions(linewidth=150)
     # @type myTruss truss
     myTruss = truss(sys.argv[1])
 
-
-
-
+    kGeneral = zeros((2*len(myTruss.joints),2*len(myTruss.joints)))
     for b in myTruss.beams:
-        print b
+        addToGeneral(kGeneral, b)
+    print "kGeneral"
+    print kGeneral
 
+    dof = len(myTruss.joints)*2
+    supportedDof = myTruss.supportedDof;
+    freeDof = dof - myTruss.supportedDof;
+
+    kff = zeros((freeDof,freeDof))
+    ksf = zeros((supportedDof,freeDof))
+    kfs = zeros((freeDof,supportedDof))
+    kss = zeros((supportedDof,supportedDof))
+
+    ffi = 0
+    sfi = 0
+    fsi = 0
+    ssi = 0
+    sxj = 0
+    fxj = 0
+
+    for i in range(dof): #we take a row
+        if myTruss.dof[i]: #if this row is supported
+            for j in range(dof): #for each item in the rwo
+                if myTruss.dof[j]: #if the column is supported
+                    print kss
+                    kss[ssi,sxj]=kGeneral[i,j] #we fill kss
+                    ssi += 1 #and go to next empty cell
+                else:
+                    ksf[sfi,sxj]=kGeneral[i,j] #we fill ksf
+                    sfi += 1 #and go to the next empty cell
+            sxj +=1; #when an s row is finished we know
+                #that we filled the first row of both ksf and kss
+            ssi = 0; sfi = 0 #and start over with the rows
+        else:
+            for j in range(dof):
+                if myTruss.dof[j]:
+                    kfs[fsi,fxj]=kGeneral[i,j]
+                    fsi += 1
+                else:
+                    kff[ffi,fxj]=kGeneral[i,j]
+                    ffi += 1
+            fxj += 1;
+            fsi=0; ffi=0
+
+    print "kff"
+    print kff
+    print "kss"
+    print kss
+    print "kfs"
+    print kfs
+    print "ksf"
+    print ksf
+
+# build xf
+#----------------------------
+#build xfful (preliminary for reducing to xf)
+    rf = zeros((freeDof))
+    fi = 0
     for j in myTruss.joints:
-        print j
+        if not "x" in j.supports:
+            rf[fi]= j.getTotalLoadMagnitude().x; #total load magnitudes haven't been
+            fi += 1                                     #initialized
+        if not "y" in j.supports:
+            rf[fi]= j.totalMagnitude.y;#now the values of total magnitude are
+            fi += 1                    #already stored in the variables so no need
+                                       #to calculate again
+    print rf
+
+
+
+#print myTruss.dof
+
+#    for b in myTruss.beams:
+#        print b
+#
+#    for j in myTruss.joints:
+#        print j
 
 #    n1 = joint(0,0,0)
 #    n2 = joint(1,0,1)
