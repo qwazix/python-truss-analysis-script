@@ -10,6 +10,7 @@ from numpy import *
 import scipy
 import json
 import math
+import collections
 
 __author__="qwazix"
 __date__ ="$Jan 12, 2013 2:52:56 PM$"
@@ -22,7 +23,7 @@ class truss:
     def __init__(self, filename):
         # @type file file
         file = open(filename, 'r')
-        truss = json.load(file)['truss']
+        truss = json.load(file,object_pairs_hook=collections.OrderedDict)['truss']
         self.joints = list()
         for id, j in truss['joints'].iteritems():
             # @type newJoint joint
@@ -54,14 +55,17 @@ class truss:
 
     def dofArray(self):
         sDof = 0
+        i = 0
         for j in self.joints:
             # @type j joint
             if "x" in j.supports:
-                self.dof[sDof] = 1
+                self.dof[i] = 1
                 sDof += 1
+            i += 1
             if "y" in j.supports:
-                self.dof[sDof] = 1
+                self.dof[i] = 1
                 sDof += 1
+            i += 1
         self.supportedDof = sDof;
 
     
@@ -139,6 +143,7 @@ class beam:
     length = 0
     sin = 0
     cos = 0
+    axial = 0
     ktemp = matrix(0)
     klocal = zeros((4,4))
     T = matrix(0)
@@ -156,16 +161,14 @@ class beam:
         self.sin = self.distances.y/self.length
         self.cos = self.distances.x/self.length
         self.ktemp = self.sectionArea*self.elasticity/self.length * mat("1 0;0 0")
-#        self.klocal = self.ktemp
-        for i in range(4):
-            for j in range(4):
-                #βάζουμε τον πίνακα ktemp 4 φορές στον πίνακα klocal ως εξής
-                # __________
-                #|  1 |  2 | --> klocal
-                #|____|____|  /
-                #|  3 |  4 | /
-                #|____|____|
-                self.klocal[i,j] = self.ktemp[i%2,j%2]
+        #βάζουμε τον πίνακα ktemp 4 φορές στον πίνακα klocal ως εξής
+        # __________
+        #|kte |-kt | --> klocal
+        #|mp__|____|  /
+        #|-kt | kt | /
+        #|____|____|
+        self.klocal = hstack((self.ktemp,-self.ktemp))
+        self.klocal = vstack((self.klocal,-self.klocal))
         #build transformation matrix
         self.T = array([[self.cos, self.sin, 0, 0],[-self.sin, self.cos, 0, 0],[0, 0, self.cos, self.sin],[0, 0, -self.sin, self.cos]])
         #compute stiffness matrix in global coords
@@ -198,12 +201,14 @@ def addToGeneral(generalK, b):
 
 def computeAxialForces(b, u):
     # @type b beam
-    myu = array();
-    myu[i,0]=u[2*b.startNode.id-1,1]
-    myu[i,0]=u[2*b.startNode.id,1]
-    myu[i,0]=u[2*b.endNode.id-1,1]
-    myu[i,0]=u[2*b.endNode.id,1]
-    return b.klocal.dot(b.conj().transpose()).dot(myu);
+    myu = zeros((4));
+    myu[0]=u[2*b.startNode.id]
+    myu[1]=u[2*b.startNode.id+1]
+    myu[2]=u[2*b.endNode.id]
+    myu[3]=u[2*b.endNode.id+1]
+    myu = array([myu]).transpose()
+#    print (b.klocal.dot(b.T)).dot(myu)
+    return (b.klocal.dot(b.T)).dot(myu);
 
 def getColumn(mat, column):
     return array([mat[:][:,column]]).transpose()
@@ -211,7 +216,7 @@ def getColumn(mat, column):
 
 if __name__ == "__main__":
 
-    set_printoptions(precision=4)
+    set_printoptions(precision=5)
     set_printoptions(linewidth=150)
     # @type myTruss truss
     myTruss = truss(sys.argv[1])
@@ -219,8 +224,8 @@ if __name__ == "__main__":
     kGeneral = zeros((2*len(myTruss.joints),2*len(myTruss.joints)))
     for b in myTruss.beams:
         addToGeneral(kGeneral, b)
-    print "kGeneral"
-    print kGeneral
+#    print "kGeneral"
+#    print kGeneral
 
     dof = len(myTruss.joints)*2
     supportedDof = myTruss.supportedDof;
@@ -230,69 +235,133 @@ if __name__ == "__main__":
     ksf = zeros((supportedDof,freeDof))
     kfs = zeros((freeDof,supportedDof))
     kss = zeros((supportedDof,supportedDof))
+    
+#    print myTruss.dof
 
-    ffi = 0
-    sfi = 0
-    fsi = 0
-    ssi = 0
-    sxj = 0
-    fxj = 0
-
-    for i in range(dof): #we take a row
-        if myTruss.dof[i]: #if this row is supported
-            for j in range(dof): #for each item in the rwo
-                if myTruss.dof[j]: #if the column is supported
-                    print kss
-                    kss[ssi,sxj]=kGeneral[i,j] #we fill kss
-                    ssi += 1 #and go to next empty cell
+    ffj = 0
+    sfj = 0
+    fsj = 0
+    ssj = 0
+    sxi = 0
+    fxi = 0
+    
+    for i in range(dof): #we take a column
+        if myTruss.dof[i]==1: #if this column is supported
+            for j in range(dof): #for each item in the column
+                if myTruss.dof[j]==1: #if the row is supported
+                    kss[sxi,ssj]=kGeneral[i,j] #we fill kss
+#                    print "kss"
+#                    print kss
+                    ssj += 1 #and go to next empty cell
                 else:
-                    ksf[sfi,sxj]=kGeneral[i,j] #we fill ksf
-                    sfi += 1 #and go to the next empty cell
-            sxj +=1; #when an s row is finished we know
+#                    print "ksf"
+#                    print ksf
+                    ksf[sxi,sfj]=kGeneral[i,j] #we fill ksf
+                    sfj += 1 #and go to the next empty cell
+            sxi +=1; #when an s row is finished we know
                 #that we filled the first row of both ksf and kss
-            ssi = 0; sfi = 0 #and start over with the rows
+            ssj = 0; sfj = 0 #and start over with the rows
         else:
             for j in range(dof):
                 if myTruss.dof[j]:
-                    kfs[fsi,fxj]=kGeneral[i,j]
-                    fsi += 1
+                    kfs[fxi,fsj]=kGeneral[i,j]
+                    fsj += 1
                 else:
-                    kff[ffi,fxj]=kGeneral[i,j]
-                    ffi += 1
-            fxj += 1;
-            fsi=0; ffi=0
+                    kff[fxi,ffj]=kGeneral[i,j]
+                    ffj += 1
+            fxi += 1;
+            fsj=0; ffj=0
 
-    print "kff"
-    print kff
-    print "kss"
-    print kss
-    print "kfs"
-    print kfs
-    print "ksf"
-    print ksf
+#    print "kff"
+#    print kff
+#    print "kss"
+#    print kss
+#    print "kfs"
+#    print kfs
+#    print "ksf"
+#    print ksf
 
-# build xf
-#----------------------------
-#build xfful (preliminary for reducing to xf)
+# build rf and us (vector of prescribed displacements)
     rf = zeros((freeDof))
-    fi = 0
+    us = zeros((supportedDof))
+    fi = 0; si = 0;
     for j in myTruss.joints:
-        if not "x" in j.supports:
+        if "x" in j.supports:
+            us[si] = j.supports["x"]
+            si += 1
+        else:
             rf[fi]= j.getTotalLoadMagnitude().x; #total load magnitudes haven't been
             fi += 1                                     #initialized
-        if not "y" in j.supports:
-            rf[fi]= j.totalMagnitude.y;#now the values of total magnitude are
-            fi += 1                    #already stored in the variables so no need
-                                       #to calculate again
+        if "y" in j.supports:
+            us[si] = j.supports["y"]
+            si += 1
+        else:
+            rf[fi]= j.totalMagnitude.y;  #now the values of total magnitude are
+            fi += 1                      #already stored in the variables so no need
+                                         #to calculate again
+#make us and rf vertical vectors
+    rf = array([rf]).transpose()
+    us = array([us]).transpose()
+
+    print "rf | applied loads"
     print rf
+    print "us | prescribed displacements"
+    print us
+
+#solve!
+    uf = linalg.inv(kff).dot(rf-kfs.dot(us))
+    rs = ksf.dot(uf)+kss.dot(us)
+
+    print "rs  | support reactions"
+    print rs
+
+#build u
+    u = zeros((dof))
+    fi = 0; i = 0;
+    for j in myTruss.joints:
+        if "x" in j.supports:
+            u[2*i] = j.supports["x"]
+        else:
+            u[2*i] = uf[fi]
+            fi += 1                    
+        if "y" in j.supports:
+            u[2*i+1] = j.supports["y"]
+        else:
+            u[2*i+1] = uf[fi]
+            fi += 1
+        i += 1
+    print "u | displacements"
+    print u
+
+#store displacements in joints
+    i = 0;
+    for j in myTruss.joints:
+        if "x" in j.supports:
+            j.displacement.x = u[2*i]
+        if "y" in j.supports:
+            j.displacement.y = u[2*i+1]
+
+#compute axial forces
+    s = zeros((len(myTruss.beams)))
+    i = 0;
+    for m in myTruss.beams:
+        s[i]=computeAxialForces(m, u)[0]
+        #store axial forces in beams
+        m.axial = s[i]
+        i += 1
+
+print "s | axial forces in beams"
+print s
 
 
 
 #print myTruss.dof
 
 #    for b in myTruss.beams:
-#        print b
-#
+#        print b.kglobal
+#        print
+
+
 #    for j in myTruss.joints:
 #        print j
 
