@@ -7,7 +7,7 @@ import sys
 
 from cmath import sqrt
 from numpy import *
-import scipy
+#import scipy
 import json
 import math
 import collections
