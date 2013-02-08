@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # coding=utf-8
 import sys
-
+import pickle
 # To change this template, choose Tools | Templates
 # and open the template in the editor.
 
@@ -158,6 +158,7 @@ class beam:
         self.endNode = end
         self.distances = end.coordinates - start.coordinates
         self.length = start.coordinates.distance(end.coordinates)
+        self.weight=self.length*self.sectionArea
         self.sin = self.distances.y/self.length
         self.cos = self.distances.x/self.length
         self.ktemp = self.sectionArea*self.elasticity/self.length * mat("1 0;0 0")
@@ -183,6 +184,7 @@ class beam:
         res+= 'Section Area: %d\n' % self.sectionArea;
         res+= 'cos:          %d\n' % self.cos;
         res+= 'sin:          %d\n' % self.sin;
+        res+= 'Weight: %d\n' % self.weight;
         res+= 'start:        joint  %d\n' % self.startNode.id;
         res+= 'end:          joint  %d\n' % self.endNode.id;
         return res;
@@ -298,7 +300,7 @@ if __name__ == "__main__":
         else:
             rf[fi]= j.totalMagnitude.y;  #now the values of total magnitude are
             fi += 1                      #already stored in the variables so no need
-                                         #to calculate again
+    my_dict= {}                                     #to calculate again
 #make us and rf vertical vectors
     rf = array([rf]).transpose()
     us = array([us]).transpose()
@@ -330,8 +332,10 @@ if __name__ == "__main__":
             u[2*i+1] = uf[fi]
             fi += 1
         i += 1
+        
     print "u | displacements"
     print u
+    my_dict['displacements']=u
 
 #store displacements in joints
     i = 0;
@@ -344,14 +348,24 @@ if __name__ == "__main__":
 #compute axial forces
     s = zeros((len(myTruss.beams)))
     i = 0;
+    totalWeight=0;
     for m in myTruss.beams:
         s[i]=computeAxialForces(m, u)[0]
         #store axial forces in beams
         m.axial = s[i]
-        i += 1
+        totalWeight=totalWeight+m.weight
+        i += 1  
 
 print "s | axial forces in beams"
 print s
+my_dict['axial forces']=s
+my_dict['totalWeight']=totalWeight
+output = open('/home/mike/Documents/projects/python-truss-analysis-script/src/myfile.pkl','wb')
+pickle.dump(my_dict, output)
+output.close()
+f = open('/home/mike/Documents/projects/python-truss-analysis-script/src/myfile.txt','w')
+f.write(str(my_dict))
+f.close();
 
 
 
