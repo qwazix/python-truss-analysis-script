@@ -20,6 +20,9 @@ class truss:
     joints = list()
     supportedDof = 0
     dof = 0
+    kGeneral = 0
+    freeDof =0
+    dofCount = 0
     def __init__(self, filename):
         # @type file file
         file = open(filename, 'r')
@@ -39,6 +42,7 @@ class truss:
         self.dof = zeros((len(self.joints)*2))
         self.dofArray();
         self.beams = list()
+        self.kGeneral = zeros((2*len(self.joints),2*len(self.joints)))
         for id, b in truss['beams'].iteritems():
             # @type newBeam beam
             newBeam = beam(int(id),self.joints[b["start"]],self.joints[b["end"]])
@@ -52,6 +56,8 @@ class truss:
             # @type j joint
             sDof += len(j.supports);
         self.supportedDof = sDof;
+        self.dofCount = len(self.joints)*2
+        self.freeDof = self.dofCount - self.supportedDof;
 
     def dofArray(self):
         sDof = 0
@@ -67,6 +73,167 @@ class truss:
                 sDof += 1
             i += 1
         self.supportedDof = sDof;
+
+    def addToGeneral(self, b):
+        # @type b beam
+        startC=2*b.startNode.id
+        endC=2*b.endNode.id
+        for i in range(2):
+            for j in range(2):
+                self.kGeneral[startC+i,startC+j]+=b.kglobal[i,j]
+                self.kGeneral[startC+i,endC+j]+=b.kglobal[i,2+j]
+                self.kGeneral[endC+i,startC+j]+=b.kglobal[2+i,j]
+                self.kGeneral[endC+i,endC+j]+=b.kglobal[2+i,2+j]
+
+
+    def computeAxialForces(self, b, u):
+        # @type b beam
+        myu = zeros((4));
+        myu[0]=u[2*b.startNode.id]
+        myu[1]=u[2*b.startNode.id+1]
+        myu[2]=u[2*b.endNode.id]
+        myu[3]=u[2*b.endNode.id+1]
+        myu = array([myu]).transpose()
+    #    print (b.klocal.dot(b.T)).dot(myu)
+        return (b.klocal.dot(b.T)).dot(myu);
+
+    def getColumn(self, mat, column):
+        return array([mat[:][:,column]]).transpose()
+
+    def solve(self):
+        set_printoptions(precision=5)
+        set_printoptions(linewidth=150)
+        # @type self truss
+        self.calculateSupportedDof()
+
+
+        for b in self.beams:
+            self.addToGeneral(b)
+    #    print "kGeneral"
+    #    print kGeneral
+
+        kff = zeros((self.freeDof,self.freeDof))
+        ksf = zeros((self.supportedDof,self.freeDof))
+        kfs = zeros((self.freeDof,self.supportedDof))
+        kss = zeros((self.supportedDof,self.supportedDof))
+
+    #    print self.dof
+
+        ffj = 0
+        sfj = 0
+        fsj = 0
+        ssj = 0
+        sxi = 0
+        fxi = 0
+
+        for i in range(self.dofCount): #we take a column
+            if self.dof[i]==1: #if this column is supported
+                for j in range(self.dofCount): #for each item in the column
+                    if self.dof[j]==1: #if the row is supported
+                        kss[sxi,ssj]=self.kGeneral[i,j] #we fill kss
+    #                    print "kss"
+    #                    print kss
+                        ssj += 1 #and go to next empty cell
+                    else:
+    #                    print "ksf"
+    #                    print ksf
+                        ksf[sxi,sfj]=self.kGeneral[i,j] #we fill ksf
+                        sfj += 1 #and go to the next empty cell
+                sxi +=1; #when an s row is finished we know
+                    #that we filled the first row of both ksf and kss
+                ssj = 0; sfj = 0 #and start over with the rows
+            else:
+                for j in range(self.dofCount):
+                    if self.dof[j]:
+                        kfs[fxi,fsj]=self.kGeneral[i,j]
+                        fsj += 1
+                    else:
+                        kff[fxi,ffj]=self.kGeneral[i,j]
+                        ffj += 1
+                fxi += 1;
+                fsj=0; ffj=0
+
+    #    print "kff"
+    #    print kff
+    #    print "kss"
+    #    print kss
+    #    print "kfs"
+    #    print kfs
+    #    print "ksf"
+    #    print ksf
+
+    # build rf and us (vector of prescribed displacements)
+        rf = zeros((self.freeDof))
+        us = zeros((self.supportedDof))
+        fi = 0; si = 0;
+        for j in self.joints:
+            if "x" in j.supports:
+                us[si] = j.supports["x"]
+                si += 1
+            else:
+                rf[fi]= j.getTotalLoadMagnitude().x; #total load magnitudes haven't been
+                fi += 1                                     #initialized
+            if "y" in j.supports:
+                us[si] = j.supports["y"]
+                si += 1
+            else:
+                rf[fi]= j.totalMagnitude.y;  #now the values of total magnitude are
+                fi += 1                      #already stored in the variables so no need
+                                             #to calculate again
+    #make us and rf vertical vectors
+        rf = array([rf]).transpose()
+        us = array([us]).transpose()
+
+#        print "rf | applied loads"
+#        print rf
+#        print "us | prescribed displacements"
+#        print us
+
+    #solve!
+        uf = linalg.inv(kff).dot(rf-kfs.dot(us))
+        rs = ksf.dot(uf)+kss.dot(us)
+
+#        print "rs  | support reactions"
+#        print rs
+
+    #build u
+        u = zeros((self.dofCount))
+        fi = 0; i = 0;
+        for j in self.joints:
+            if "x" in j.supports:
+                u[2*i] = j.supports["x"]
+            else:
+                u[2*i] = uf[fi]
+                fi += 1
+            if "y" in j.supports:
+                u[2*i+1] = j.supports["y"]
+            else:
+                u[2*i+1] = uf[fi]
+                fi += 1
+            i += 1
+#        print "u | displacements"
+#        print u
+
+    #store displacements in joints
+        i = 0;
+        for j in self.joints:
+            if "x" in j.supports:
+                j.displacement.x = u[2*i]
+            if "y" in j.supports:
+                j.displacement.y = u[2*i+1]
+
+    #compute axial forces
+        s = zeros((len(self.beams)))
+        i = 0;
+        for m in self.beams:
+            s[i]=self.computeAxialForces(m, u)[0]
+            #store axial forces in beams
+            m.axial = s[i]
+            i += 1
+
+#        print "s | axial forces in beams"
+#        print s
+
 
     
 
@@ -187,172 +354,12 @@ class beam:
         res+= 'end:          joint  %d\n' % self.endNode.id;
         return res;
 
-def addToGeneral(generalK, b):
-    # @type b beam
-    startC=2*b.startNode.id
-    endC=2*b.endNode.id
-    for i in range(2):
-        for j in range(2):
-            generalK[startC+i,startC+j]+=b.kglobal[i,j]
-            generalK[startC+i,endC+j]+=b.kglobal[i,2+j]
-            generalK[endC+i,startC+j]+=b.kglobal[2+i,j]
-            generalK[endC+i,endC+j]+=b.kglobal[2+i,2+j]
 
-
-def computeAxialForces(b, u):
-    # @type b beam
-    myu = zeros((4));
-    myu[0]=u[2*b.startNode.id]
-    myu[1]=u[2*b.startNode.id+1]
-    myu[2]=u[2*b.endNode.id]
-    myu[3]=u[2*b.endNode.id+1]
-    myu = array([myu]).transpose()
-#    print (b.klocal.dot(b.T)).dot(myu)
-    return (b.klocal.dot(b.T)).dot(myu);
-
-def getColumn(mat, column):
-    return array([mat[:][:,column]]).transpose()
 
 
 if __name__ == "__main__":
-
-    set_printoptions(precision=5)
-    set_printoptions(linewidth=150)
-    # @type myTruss truss
     myTruss = truss(sys.argv[1])
-
-    kGeneral = zeros((2*len(myTruss.joints),2*len(myTruss.joints)))
-    for b in myTruss.beams:
-        addToGeneral(kGeneral, b)
-#    print "kGeneral"
-#    print kGeneral
-
-    dof = len(myTruss.joints)*2
-    supportedDof = myTruss.supportedDof;
-    freeDof = dof - myTruss.supportedDof;
-
-    kff = zeros((freeDof,freeDof))
-    ksf = zeros((supportedDof,freeDof))
-    kfs = zeros((freeDof,supportedDof))
-    kss = zeros((supportedDof,supportedDof))
-    
-#    print myTruss.dof
-
-    ffj = 0
-    sfj = 0
-    fsj = 0
-    ssj = 0
-    sxi = 0
-    fxi = 0
-    
-    for i in range(dof): #we take a column
-        if myTruss.dof[i]==1: #if this column is supported
-            for j in range(dof): #for each item in the column
-                if myTruss.dof[j]==1: #if the row is supported
-                    kss[sxi,ssj]=kGeneral[i,j] #we fill kss
-#                    print "kss"
-#                    print kss
-                    ssj += 1 #and go to next empty cell
-                else:
-#                    print "ksf"
-#                    print ksf
-                    ksf[sxi,sfj]=kGeneral[i,j] #we fill ksf
-                    sfj += 1 #and go to the next empty cell
-            sxi +=1; #when an s row is finished we know
-                #that we filled the first row of both ksf and kss
-            ssj = 0; sfj = 0 #and start over with the rows
-        else:
-            for j in range(dof):
-                if myTruss.dof[j]:
-                    kfs[fxi,fsj]=kGeneral[i,j]
-                    fsj += 1
-                else:
-                    kff[fxi,ffj]=kGeneral[i,j]
-                    ffj += 1
-            fxi += 1;
-            fsj=0; ffj=0
-
-#    print "kff"
-#    print kff
-#    print "kss"
-#    print kss
-#    print "kfs"
-#    print kfs
-#    print "ksf"
-#    print ksf
-
-# build rf and us (vector of prescribed displacements)
-    rf = zeros((freeDof))
-    us = zeros((supportedDof))
-    fi = 0; si = 0;
-    for j in myTruss.joints:
-        if "x" in j.supports:
-            us[si] = j.supports["x"]
-            si += 1
-        else:
-            rf[fi]= j.getTotalLoadMagnitude().x; #total load magnitudes haven't been
-            fi += 1                                     #initialized
-        if "y" in j.supports:
-            us[si] = j.supports["y"]
-            si += 1
-        else:
-            rf[fi]= j.totalMagnitude.y;  #now the values of total magnitude are
-            fi += 1                      #already stored in the variables so no need
-                                         #to calculate again
-#make us and rf vertical vectors
-    rf = array([rf]).transpose()
-    us = array([us]).transpose()
-
-    print "rf | applied loads"
-    print rf
-    print "us | prescribed displacements"
-    print us
-
-#solve!
-    uf = linalg.inv(kff).dot(rf-kfs.dot(us))
-    rs = ksf.dot(uf)+kss.dot(us)
-
-    print "rs  | support reactions"
-    print rs
-
-#build u
-    u = zeros((dof))
-    fi = 0; i = 0;
-    for j in myTruss.joints:
-        if "x" in j.supports:
-            u[2*i] = j.supports["x"]
-        else:
-            u[2*i] = uf[fi]
-            fi += 1                    
-        if "y" in j.supports:
-            u[2*i+1] = j.supports["y"]
-        else:
-            u[2*i+1] = uf[fi]
-            fi += 1
-        i += 1
-    print "u | displacements"
-    print u
-
-#store displacements in joints
-    i = 0;
-    for j in myTruss.joints:
-        if "x" in j.supports:
-            j.displacement.x = u[2*i]
-        if "y" in j.supports:
-            j.displacement.y = u[2*i+1]
-
-#compute axial forces
-    s = zeros((len(myTruss.beams)))
-    i = 0;
-    for m in myTruss.beams:
-        s[i]=computeAxialForces(m, u)[0]
-        #store axial forces in beams
-        m.axial = s[i]
-        i += 1
-
-print "s | axial forces in beams"
-print s
-
+    myTruss.solve()
 
 
 #print myTruss.dof
