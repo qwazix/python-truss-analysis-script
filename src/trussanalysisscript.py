@@ -11,6 +11,7 @@ from numpy import *
 import json
 import math
 import collections
+import matplotlib.pyplot as plt
 
 __author__="qwazix"
 __date__ ="$Jan 12, 2013 2:52:56 PM$"
@@ -23,14 +24,17 @@ class truss:
     kGeneral = 0
     freeDof =0
     dofCount = 0
-    def __init__(self, filename):
+    displacements = 0
+    totalWeight = 0
+    def __init__(self, truss):
         # @type file file
-        file = open(filename, 'r')
-        truss = json.load(file,object_pairs_hook=collections.OrderedDict)['truss']
+        
         self.joints = list()
+        jointsStr = ""
         for id, j in truss['joints'].iteritems():
             # @type newJoint joint
             newJoint = joint(int(id),j["x"],j["y"])
+            jointsStr += '({},{})'.format(j["x"], j["y"])
             if "loads" in j:
                 tmpLoads = list()
                 for l in j["loads"]:
@@ -38,7 +42,7 @@ class truss:
                     newJoint.loads = tmpLoads
             if ("supports" in j) : newJoint.supports = j["supports"]
             self.joints.append(newJoint)
-
+        print jointsStr
         self.dof = zeros((len(self.joints)*2))
         self.dofArray();
         self.beams = list()
@@ -99,6 +103,52 @@ class truss:
 
     def getColumn(self, mat, column):
         return array([mat[:][:,column]]).transpose()
+        
+    def plot(self):
+        maxx = 0;
+        maxy = 0;
+        minx = 0;
+        miny = 0;
+        for j in self.joints:
+            if j.coordinates.y < miny: miny = j.coordinates.y
+            if j.coordinates.x < minx: minx = j.coordinates.x
+            if j.coordinates.y > maxy: maxy = j.coordinates.y
+            if j.coordinates.x > maxx: maxx = j.coordinates.x
+
+        self.fig1 = plt.figure(1);
+        plt.ylim(miny - 1, maxy + 1)
+        plt.xlim(minx - 1, maxx + 1)
+        for m in self.beams:
+            # @type m beam
+            plt.plot((m.startNode.coordinates.x,m.endNode.coordinates.x),(m.startNode.coordinates.y,m.endNode.coordinates.y),'k-')
+        plt.show()
+
+    def plotSolved(self):
+        maxx = 0;
+        maxy = 0;
+        minx = 0;
+        miny = 0;
+        for j in self.joints:
+            if j.coordinates.y < miny: miny = j.coordinates.y
+            if j.coordinates.x < minx: minx = j.coordinates.x
+            if j.coordinates.y > maxy: maxy = j.coordinates.y
+            if j.coordinates.x > maxx: maxx = j.coordinates.x
+
+        self.fig1 = plt.figure(1);
+        plt.ylim(miny - 1, maxy + 1)
+        plt.xlim(minx - 1, maxx + 1)
+        plt.figure(1)
+        for m in self.beams:
+            # @type m beam
+            plt.plot((m.startNode.coordinates.x,m.endNode.coordinates.x),(m.startNode.coordinates.y,m.endNode.coordinates.y),'k-')
+        for m in self.beams:
+            # @type m beam
+            x1 = m.startNode.coordinates.x + m.startNode.displacement.x*100
+            x2 = m.endNode.coordinates.x + m.endNode.displacement.x*100
+            y1 = m.startNode.coordinates.y + m.startNode.displacement.y*100
+            y2 = m.endNode.coordinates.y + m.endNode.displacement.y*100
+            plt.plot((x1,x2),(y1,y2),'b-')
+        plt.show()
 
     def solve(self):
         set_printoptions(precision=5)
@@ -196,6 +246,7 @@ class truss:
 #        print "rs  | support reactions"
 #        print rs
 
+
     #build u
         u = zeros((self.dofCount))
         fi = 0; i = 0;
@@ -211,23 +262,25 @@ class truss:
                 u[2*i+1] = uf[fi]
                 fi += 1
             i += 1
+        self.displacements = u
 #        print "u | displacements"
 #        print u
 
     #store displacements in joints
         i = 0;
         for j in self.joints:
-            if "x" in j.supports:
-                j.displacement.x = u[2*i]
-            if "y" in j.supports:
-                j.displacement.y = u[2*i+1]
+            p = point(u[2*i],u[2*i+1])
+            j.displacement = p
+            i += 1
 
     #compute axial forces
         s = zeros((len(self.beams)))
         i = 0;
+        self.totalWeight=0;
         for m in self.beams:
             s[i]=self.computeAxialForces(m, u)[0]
             #store axial forces in beams
+            self.totalWeight=self.totalWeight+m.weight
             m.axial = s[i]
             i += 1
 
@@ -269,6 +322,8 @@ class joint:
         res+= 'Joint No:      %d\n' % self.id;
         res+= '       x:      %d\n' % self.coordinates.x;
         res+= '       y:      %d\n' % self.coordinates.y;
+        res+= 'displ  x:      %f\n' % self.displacement.x;
+        res+= 'displ  y:      %f\n' % self.displacement.y;
         for l in self.loads:
             # @type load load
             res += l.__str__()
@@ -325,6 +380,7 @@ class beam:
         self.endNode = end
         self.distances = end.coordinates - start.coordinates
         self.length = start.coordinates.distance(end.coordinates)
+        self.weight=self.length*self.sectionArea
         self.sin = self.distances.y/self.length
         self.cos = self.distances.x/self.length
         self.ktemp = self.sectionArea*self.elasticity/self.length * mat("1 0;0 0")
@@ -348,6 +404,7 @@ class beam:
         res+= 'Length:       %d\n' % self.length;
         res+= 'Elasticity:   %.1e\n' % self.elasticity;
         res+= 'Section Area: %d\n' % self.sectionArea;
+        res+= 'Weight:       %d\n' % self.weight;
         res+= 'cos:          %d\n' % self.cos;
         res+= 'sin:          %d\n' % self.sin;
         res+= 'start:        joint  %d\n' % self.startNode.id;
@@ -358,8 +415,13 @@ class beam:
 
 
 if __name__ == "__main__":
-    myTruss = truss(sys.argv[1])
+    file = open(sys.argv[1], 'r')
+    trussDict = json.load(file,object_pairs_hook=collections.OrderedDict)['truss']
+
+    myTruss = truss(trussDict)
     myTruss.solve()
+#    myTruss.plot()
+    myTruss.plotSolved()
 
 
 #print myTruss.dof

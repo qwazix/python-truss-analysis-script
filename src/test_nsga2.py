@@ -1,3 +1,4 @@
+#!/usr/bin/python
 '''
 Created on 10/01/2011
 
@@ -6,6 +7,11 @@ Created on 10/01/2011
 import random, math
 from nsga2 import Solution
 from nsga2 import NSGAII
+import json
+import collections
+import sys
+from trussanalysisscript import truss
+
 
 #from nsga2.nsga2 import Solution
 
@@ -21,9 +27,15 @@ class T1Solution(Solution):
         
         self.xmin = 0.0
         self.xmax = 1.0
-        
-        for _ in range(30):
-            self.attributes.append(random.random())
+        file = open(sys.argv[1], 'r')
+        trussDict = json.load(file,object_pairs_hook=collections.OrderedDict)['truss']
+
+        for id,joint in trussDict['joints'].iteritems():
+            if not "supports" in joint or not "y" in joint["supports"]:
+                joint["y"] = random.uniform(joint["y"]-1,joint["y"]+1)
+
+
+        self.myTruss = truss(trussDict)
         
         self.evaluate_solution()
         
@@ -31,15 +43,11 @@ class T1Solution(Solution):
         '''
         Implementation of method evaluate_solution() for T1 function.
         '''
-        self.objectives[0] = self.attributes[0]
+        self.myTruss.solve()
+        self.objectives[0] = self.myTruss.displacements[5]
         
-        sum = 0.0
-        for i in range(30):
-            sum += self.attributes[i]
-            
-        g = 1.0 + (9.0 * (sum / 29))
         
-        self.objectives[1] = g * (1.0 - math.sqrt(self.attributes[0] / g))
+        self.objectives[1] = self.myTruss.totalWeight
         
     def crossover(self, other):
         '''
@@ -47,8 +55,9 @@ class T1Solution(Solution):
         '''
         child_solution = T1Solution()
         
-        for i in range(30):
-            child_solution.attributes[i] = math.sqrt(self.attributes[i] * other.attributes[i])
+        for i in range(len(self.myTruss.joints)):
+#            if i<=len(self.myTruss.joints)/2:
+            child_solution.myTruss.joints[i].coordinates.y = (self.myTruss.joints[i].coordinates.y + other.myTruss.joints[i].coordinates.y)/2
         
         return child_solution
     
@@ -56,17 +65,23 @@ class T1Solution(Solution):
         '''
         Mutation of T1 solution.
         '''
-        self.attributes[random.randint(0, 29)] = random.random()
+        condition = True
+        while condition:
+            joint = self.myTruss.joints[random.randint(0, len(self.myTruss.joints)-1)]
+            if not "y" in joint.supports:
+                joint.coordinates.y = random.uniform(joint.coordinates.y -3, joint.coordinates.y+3)
+                condition = False
 
     
 if __name__ == '__main__':
     nsga2 = NSGAII(2, 0.1, 1.0)
     
     P = []
-    for i in range(500):
+    for i in range(50):
         P.append(T1Solution())
     
-    nsga2.run(P, 50, 20)
+    nsga2.run(P, 5, 2)
+#    nsga2.run(P, 50, 20)
     
     csv_file = open('/tmp/nsga2_out.csv', 'w')
     
