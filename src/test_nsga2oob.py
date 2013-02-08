@@ -35,11 +35,11 @@ class T1Solution(Solution):
         '''
         print "*************"
         x=str(randint(1,9))
-        subprocess.Popen("python /home/mike/Documents/projects/python-truss-analysis-script/src/trussanalysisscript.py /home/mike/Documents/projects/python-truss-analysis-script/src/data"+x+".json",shell=True)
+        subprocess.Popen("python /home/qwazix/Documents/projects/python-truss-analysis-script/src/trussanalysisscript.py /home/qwazix/Documents/projects/python-truss-analysis-script/src/data"+x+".json",shell=True)
         
         my_dict= {}
         try:
-            f = open('/home/mike/Documents/projects/python-truss-analysis-script/src/myfile.pkl','rb')
+            f = open('/home/qwazix/Documents/projects/python-truss-analysis-script/src/myfile.pkl','rb')
             my_dict=pickle.load(f)
             f.close()
             totalWeight=my_dict['totalWeight'];
@@ -88,7 +88,7 @@ class T1Solution(Solution):
         data={}
         for loop in xrange(0,10):
             stringLoop=str(loop)
-            file = open('/home/mike/Documents/projects/python-truss-analysis-script/src/data'+stringLoop+'.json', 'r')
+            file = open('/home/qwazix/Documents/projects/python-truss-analysis-script/src/data'+stringLoop+'.json', 'r')
             data[loop] = json.load(file,object_pairs_hook=collections.OrderedDict)['truss']
             loop=loop+1;
             file.close();
@@ -111,7 +111,7 @@ if __name__ == '__main__':
     for loop in xrange(0,10):
         stringLoop=str(loop)
         print "+++++++++++++"
-        file = open('/home/mike/Documents/projects/python-truss-analysis-script/src/10th-series.json', 'r')
+        file = open('/home/qwazix/Documents/projects/python-truss-analysis-script/src/10th-series.json', 'r')
         truss = json.load(file,object_pairs_hook=collections.OrderedDict)['truss']
         #truss3=json.loads(file,object_pairs_hook=collections.OrderedDict)
         joints = list()
@@ -127,7 +127,7 @@ if __name__ == '__main__':
             print Solution;
         #newtruss=truss
         newtruss=dict({'truss':truss})
-        file2 = open('/home/mike/Documents/projects/python-truss-analysis-script/src/data'+stringLoop+'.json', 'w+')
+        file2 = open('/home/qwazix/Documents/projects/python-truss-analysis-script/src/data'+stringLoop+'.json', 'w+')
         file2.write(json.dumps(newtruss))
         #file2.write(json.dumps(newtruss))
         file2.close();
@@ -140,7 +140,7 @@ if __name__ == '__main__':
     data={}
     for loop in xrange(0,10):
         stringLoop=str(loop)
-        file = open('/home/mike/Documents/projects/python-truss-analysis-script/src/data'+stringLoop+'.json', 'r')
+        file = open('/home/qwazix/Documents/projects/python-truss-analysis-script/src/data'+stringLoop+'.json', 'r')
         data[loop] = json.load(file,object_pairs_hook=collections.OrderedDict)['truss']
         loop=loop+1;
         file.close();

@@ -305,17 +305,17 @@ if __name__ == "__main__":
     rf = array([rf]).transpose()
     us = array([us]).transpose()
 
-    print "rf | applied loads"
-    print rf
-    print "us | prescribed displacements"
-    print us
+#    print "rf | applied loads"
+#    print rf
+#    print "us | prescribed displacements"
+#    print us
 
 #solve!
     uf = linalg.inv(kff).dot(rf-kfs.dot(us))
     rs = ksf.dot(uf)+kss.dot(us)
 
-    print "rs  | support reactions"
-    print rs
+#    print "rs  | support reactions"
+#    print rs
 
 #build u
     u = zeros((dof))
@@ -356,14 +356,14 @@ if __name__ == "__main__":
         totalWeight=totalWeight+m.weight
         i += 1  
 
-print "s | axial forces in beams"
-print s
+#print "s | axial forces in beams"
+#print s
 my_dict['axial forces']=s
 my_dict['totalWeight']=totalWeight
-output = open('/home/mike/Documents/projects/python-truss-analysis-script/src/myfile.pkl','wb')
+output = open('/home/qwazix/Documents/projects/python-truss-analysis-script/src/myfile.pkl','wb')
 pickle.dump(my_dict, output)
 output.close()
-f = open('/home/mike/Documents/projects/python-truss-analysis-script/src/myfile.txt','w')
+f = open('/home/qwazix/Documents/projects/python-truss-analysis-script/src/myfile.txt','w')
 f.write(str(my_dict))
 f.close();
 
