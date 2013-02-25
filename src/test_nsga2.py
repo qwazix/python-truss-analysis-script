@@ -37,17 +37,19 @@ class T1Solution(Solution):
 
         self.myTruss = truss(trussDict)
         
-        self.evaluate_solution()
+#        self.evaluate_solution(0,child_no)
         
-    def evaluate_solution(self):
+    def evaluate_solution(self, iteration, child_no):
         '''
         Implementation of method evaluate_solution() for T1 function.
         '''
+        self.myTruss.iteration = iteration
+        self.myTruss.child_no = child_no
         self.myTruss.solve()
-        self.objectives[0] = self.myTruss.displacements[5]
+        self.objectives[0] = self.myTruss.totalWeight
         
         
-        self.objectives[1] = self.myTruss.totalWeight
+        self.objectives[1] = self.myTruss.displacements[3]
         
     def crossover(self, other):
         '''
@@ -77,13 +79,13 @@ if __name__ == '__main__':
     nsga2 = NSGAII(2, 0.1, 1.0)
     
     P = []
-    for i in range(50):
+    for i in range(10):
         P.append(T1Solution())
     
-    nsga2.run(P, 5, 2)
+    nsga2.run(P, 10, 10)
 #    nsga2.run(P, 50, 20)
     
-    csv_file = open('/tmp/nsga2_out.csv', 'w')
+    csv_file = open('../output/nsga2_out.csv', 'w')
     
     for i in range(len(P)):
         csv_file.write("" + str(P[i].objectives[0]) + ", " + str(P[i].objectives[1]) + "\n")

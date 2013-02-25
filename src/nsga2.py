@@ -23,7 +23,7 @@ class Solution:
         self.rank = sys.maxint
         self.distance = 0.0
         
-    def evaluate_solution(self):
+    def evaluate_solution(self, iteration, child_no):
         '''
         Evaluate solution, update objectives values.
         '''
@@ -103,8 +103,10 @@ class NSGAII:
         '''
         Run NSGA-II. 
         '''
+        i = 0
         for s in P:
-            s.evaluate_solution()
+            s.evaluate_solution(0,i)
+            i += 1
         
         Q = []
         
@@ -134,7 +136,7 @@ class NSGAII:
             if len(P) > population_size:
                 del P[population_size:]
                 
-            Q = self.make_new_pop(P)
+            Q = self.make_new_pop(P,i)
             
     def sort_ranking(self, P):
         for i in range(len(P) - 1, -1, -1):
@@ -166,12 +168,12 @@ class NSGAII:
                     P[j - 1] = s2
                     P[j] = s1
                 
-    def make_new_pop(self, P):
+    def make_new_pop(self, P, iteration):
         '''
         Make new population Q, offspring of P. 
         '''
         Q = []
-        
+        child_no = 0
         while len(Q) != len(P):
             selected_solutions = [None, None]
             
@@ -194,10 +196,10 @@ class NSGAII:
                 if random.random() < self.mutation_rate:
                     child_solution.mutate()
                     
-                child_solution.evaluate_solution()
+                child_solution.evaluate_solution(iteration,child_no)
                 
                 Q.append(child_solution)
-        
+            child_no += 1
         return Q
         
     def fast_nondominated_sort(self, P):

@@ -12,6 +12,7 @@ import json
 import math
 import collections
 import matplotlib.pyplot as plt
+import pylab
 
 __author__="qwazix"
 __date__ ="$Jan 12, 2013 2:52:56 PM$"
@@ -21,6 +22,8 @@ class truss:
     joints = list()
     supportedDof = 0
     dof = 0
+    iteration = 0
+    child_no = 0
     kGeneral = 0
     freeDof =0
     dofCount = 0
@@ -42,7 +45,7 @@ class truss:
                     newJoint.loads = tmpLoads
             if ("supports" in j) : newJoint.supports = j["supports"]
             self.joints.append(newJoint)
-        print jointsStr
+#        print jointsStr
         self.dof = zeros((len(self.joints)*2))
         self.dofArray();
         self.beams = list()
@@ -148,7 +151,10 @@ class truss:
             y1 = m.startNode.coordinates.y + m.startNode.displacement.y*100
             y2 = m.endNode.coordinates.y + m.endNode.displacement.y*100
             plt.plot((x1,x2),(y1,y2),'b-')
-        plt.show()
+#        plt.show()
+        filename = "../output/%d-%d.png" % (self.iteration, self.child_no);
+        plt.savefig(filename)
+        plt.clf()
 
     def solve(self):
         set_printoptions(precision=5)
@@ -264,7 +270,7 @@ class truss:
             i += 1
         self.displacements = u
 #        print "u | displacements"
-#        print u
+        print u
 
     #store displacements in joints
         i = 0;
@@ -286,7 +292,7 @@ class truss:
 
 #        print "s | axial forces in beams"
 #        print s
-
+        self.plotSolved()
 
     
 
